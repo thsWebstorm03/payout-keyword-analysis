@@ -24,18 +24,22 @@
    </head>
    <body>
       <div class="container">
-         <h1 class="text-center pb-3 pt-3">Payout Keyword Analysis</h1>
-         <div class="dropdown text-right mb-2">
-            <select class="dropdown" id="period">
+         <h1 class="col-md-12 text-center pb-3 pt-3">Payout Keyword Analysis</h1>
+         <div class="col-md-12 dropdown text-right mb-2 d-flex align-center">
+            <select class="col-md-0 dropdown" id="keywords" style="display:none"></select>
+            <div class="col-md-9 text-center" style="font-size: 20px;">keyword: <span id="daily_chart_title"></span></div>
+            <select class="col-md-3 dropdown" id="period">
                <option value="3 DAY" selected>Last 3 Days</option>
                <option value="1 WEEK">Last 7 Days</option>
-               <option value="0 MONTH">This Month</option>
-               <option value="1 DAY">Last Month</option>
+               <option value="CUR_MONTH">This Month</option>
+               <option value="1 MONTH">Last Month</option>
                <option value="All">All</option>
             </select>
+
          </div>
-         <canvas id="myChart" width="400" height="150" style="margin-bottom: 16px;"></canvas>
-         <table
+         <canvas id="myChart_daily" width="400" height="150" style="margin-bottom: 20px;"></canvas>
+         <canvas id="myChart" width="400" height="150" style="margin-bottom: 20px;"></canvas>
+         <!-- <table
             id="example"
             class="table table-striped table-bordered"
             style="width: 100%; "
@@ -61,7 +65,7 @@
                   <th>Domain</th>
                </tr>
             </tfoot>
-         </table>
+         </table> -->
       </div>
 
       <script
@@ -83,17 +87,23 @@
          crossorigin="anonymous"
       ></script>
 
+      <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.x"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/1.0.1/chartjs-plugin-zoom.min.js"></script>
+
+
       <script type="text/Javascript">
 
          var dataTable;
-         var myChart;
+         var myChart, myChart_daily;
          var selperiod = $("#period").val();
+         var selkeyword = '';
 
          $(document).ready(function(){
             initialize();
             initEvents();
+            reloadKeywords(selperiod);
             reloadChart(selperiod);
-            reloadTable(selperiod);
+            // reloadTable(selperiod);
          })
 
          function initialize(){
@@ -101,26 +111,75 @@
          }
 
          function initEvents(){
-            $(".dropdown-item").click(function() {
-               var selectedDuration = $(this).text(); // Get the text of the clicked item
-               console.log("Selected Duration: " + selectedDuration); // Just for demonstration
-               reloadChart(selectedDuration);
-               reloadTable(selectedDuration);
+            $("#period").change(function() {
+               selperiod = $(this).val(); // Get the text of the clicked item
+               selkeyword = $("#keywords").val();
+               console.log(selperiod, selkeyword, "sel");
+               reloadChart(selperiod);
+               reloadTable(selperiod);
+               reloadChart_daily(selkeyword, selperiod);
+            });
+
+            $("#keywords").change(function() {
+               selkeyword = $(this).val(); // Get the text of the clicked item
+               console.log(selkeyword, 'selkey');
+               reloadChart_daily(selkeyword, selperiod);
             });
          }
+
+         function reloadKeywords(duration){
+            $.ajax({
+               url: '/keywordlist',
+               data: {
+                  period: duration,
+               },
+               type: 'GET',
+               dataType: 'json',
+               success: function(data) {
+                  updateKeywords(data);
+                  reloadChart_daily(data[0], selperiod);
+               }
+            });
+         }
+
 
          function reloadChart(duration){
             $.ajax({
                url: '/chart-data',
+               data: {
+                  period: duration,
+               },
                type: 'GET',
                dataType: 'json',
                success: function(data) {
                   createChart(data.keywords, data.average_revenues);
-                  myChart.update({
-                     duration: 800,
-                     easing: 'easeOutBounce'
-                  });
+
                }
+            });
+         }
+
+         function reloadChart_daily(selkeyword, duration){
+            $("#daily_chart_title").html(selkeyword);
+            $.ajax({
+               url: '/daily-chart-data',
+               type: 'GET',
+               data:{
+                  keyword: selkeyword,
+                  period: duration,
+               },
+               dataType: 'json',
+               success: function(data) {
+                  createChart_daily(data.log_dates, data.average_revenues);
+
+               }
+            });
+         }
+
+         function updateKeywords(keywordlist){
+            console.log(keywordlist, 'keywordlist');
+            $("#keywords").html("");
+            keywordlist.forEach(element => {
+               $("#keywords").append(`<option value="${element}">${element}</option>`);
             });
          }
 
@@ -136,14 +195,23 @@
             });
          }
 
+         function truncateString(label, num) {
+            console.log(label, 'label')
+            if (label.length <= num) {
+               return label;
+            }
+            return label.slice(0, Math.min(num, label.length)) + '...';
+         }
+
          function createChart(keywords, averageRevenues) {
             var ctx = document.getElementById('myChart').getContext('2d');
+            if(myChart) myChart.destroy();
             myChart = new Chart(ctx, {
-               type: 'bar',
+               type: 'line',
                data: {
                      labels: keywords,
                      datasets: [{
-                        label: 'Average Revenue',
+                        label: 'Total Average Revenue',
                         data: averageRevenues,
                         backgroundColor: 'rgba(0, 123, 255, 0.5)',
                         borderColor: 'rgba(0, 123, 255, 1)',
@@ -159,7 +227,11 @@
                         ticks: {
                            autoSkip: false,
                            maxRotation: 90,
-                           minRotation: 0
+                           minRotation: 0,
+                           callback: function(value, index, values) {
+                              // Assuming you want to truncate to 10 characters
+                              return truncateString(keywords[value], 8);
+                           }
                         }
                      }
                   },
@@ -167,6 +239,137 @@
                      duration: 1000 // Animation duration in milliseconds
                   },
                   responsive: true,
+                  plugins:{
+                     zoom: {
+                        pan: {
+                              enabled: true,
+                              mode: 'x'
+                        },
+                        zoom: {
+                              wheel: {
+                                 enabled: true,
+                              },
+                              pinch: {
+                                 enabled: true
+                              },
+                              mode: 'x'
+                        }
+                     }
+                  },
+                  onClick: function(event, elements) {
+                     // console.log(elements, 'elements');
+                     if (elements.length > 0) {
+                        var firstPoint = elements[0];
+
+                        // Index of the clicked point
+                        var index = firstPoint.index;
+
+                        // Label of the clicked point
+                        var label = keywords[index];
+
+                        // Value of the clicked point
+                        var value = averageRevenues[index];
+
+                        // Do something with this information
+                        console.log("Clicked on: " + label + " with value: " + value);
+                        // You can call another function here to handle the click event
+
+                        selkeyword = label;
+
+                        console.log(selkeyword, selperiod, 'OK');
+                        reloadChart_daily(selkeyword, selperiod);
+
+                     }
+                  }
+               }
+            });
+         }
+
+         function formatDate(dateStr) {
+            var date = new Date(dateStr);
+            var year = date.getFullYear();
+            var month = (date.getMonth() + 1).toString().padStart(2, '0'); // Months are zero-indexed in JS
+            var day = date.getDate().toString().padStart(2, '0');
+
+            return `${year}-${month}-${day}`;
+         }
+
+         function createChart_daily(log_dates, averageRevenues) {
+            var ctx = document.getElementById('myChart_daily').getContext('2d');
+            if(myChart_daily) myChart_daily.destroy();
+
+            // Calculate the average
+            var totalSum = averageRevenues.reduce((acc, value) => acc + Number(value), 0);
+            var averageValue = totalSum / log_dates.length;
+            
+            console.log(totalSum," == ", averageValue, "==========");
+            myChart_daily = new Chart(ctx, {
+               type: 'bar',
+               data: {
+                     labels: log_dates,
+                     datasets: [{
+                        label: 'Daily Average Revenue',
+                        data: averageRevenues,
+                        backgroundColor: 'rgba(0, 123, 255, 0.5)',
+                        borderColor: 'rgba(0, 123, 255, 1)',
+                        borderWidth: 1
+                     }]
+               },
+               options: {
+                  scales: {
+                     y: {
+                        beginAtZero: true
+                     },
+                     x: {
+                        ticks: {
+                           autoSkip: false,
+                           maxRotation: 90,
+                           minRotation: 0,
+                           callback: function(value, index, values) {
+                              // Assuming you want to truncate to 10 characters
+                              return formatDate(log_dates[value]);
+                           }
+                        }
+                     }
+                  },
+                  animation: {
+                     duration: 1000 // Animation duration in milliseconds
+                  },
+                  responsive: true,
+                  plugins: {
+                     // Add the annotation plugin configuration
+                     annotation: {
+                        annotations: {
+                              line1: {
+                                 type: 'line',
+                                 yMin: averageValue,
+                                 yMax: averageValue,
+                                 borderColor: 'rgb(255, 99, 132)',
+                                 borderWidth: 2,
+                                 label: {
+                                    content: 'Average',
+                                    enabled: true,
+                                    position: 'start'
+                                 }
+                              }
+                        }
+                     },
+                     zoom: {
+                        pan: {
+                              enabled: true,
+                              mode: 'x'
+                        },
+                        zoom: {
+                              wheel: {
+                                 enabled: true,
+                              },
+                              pinch: {
+                                 enabled: true
+                              },
+                              mode: 'x'
+                        }
+                     }
+                  }
                }
             });
          }
