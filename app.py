@@ -10,22 +10,25 @@ def index():
 
 @app.route('/postback', methods=['GET'])
 def postback():
-   print(request.args, 'request.args')
-   
-   clickid = request.args.get('clickid')
-   sum = request.args.get('sum')
-   relatedlink = request.args.get('sub20')
-   timestamp = request.args.get('sub19')
-   domain = request.args.get('sub18')
-   keyword = request.args.get('keyword')
-   # keyword = 'man'
+   try:
+      clickid = request.args.get('clickid')
+      sum = request.args.get('sum')
+      relatedlink = request.args.get('sub20')
+      timestamp = request.args.get('sub19')
+      domain = request.args.get('sub18')
+      keyword = request.args.get('keyword')
 
-   print(clickid,sum,relatedlink,timestamp,domain, 'params')
+      # Insert the data into the database
+      insert_postback_data(clickid, sum, relatedlink, timestamp, domain, keyword)
 
-   # Insert the data into the database
-   insert_postback_data(clickid, sum, relatedlink, timestamp, domain, keyword)
+      return 'OK', 200
 
-   return 'OK', 200
+   except Exception as e:
+      # Log the exception for debugging
+      print(f"An error occurred: {e}")
+
+      # Optionally, you could return a different response indicating an error
+      return 'Error occurred', 500
 
 @app.route('/report', methods=['GET'])
 def report():

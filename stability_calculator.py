@@ -57,8 +57,6 @@ def calculate_stability_for_chart(period):
         "average_revenues": [row[1] for row in rows]
     }
     
-    print(data)
-
     cursor.close()
     conn.close()
 
@@ -95,46 +93,49 @@ def get_daily_chartData(keyword, period):
     log_date_array = []
     
     if period == '3 DAY':
-        query = "SELECT DATE(timestamp) as log_date, AVG(sum) as average_revenue FROM postbacks WHERE keyword = %s AND timestamp >= NOW() - INTERVAL 3 DAY GROUP BY DATE(`timestamp`) ORDER BY DATE(`timestamp`) ASC;"
+        query = "SELECT DATE(timestamp) as log_date, AVG(sum) as average_revenue, COUNT(keyword) as total_conversions, MIN(sum) as lowest_revenue, MAX(sum) as highest_revenue FROM postbacks WHERE keyword = %s AND timestamp >= NOW() - INTERVAL 3 DAY GROUP BY DATE(`timestamp`) ORDER BY DATE(`timestamp`) ASC;"
         log_date_array = create_date_array(3)
     elif period == '1 WEEK':
-        query = "SELECT DATE(timestamp) as log_date, AVG(sum) as average_revenue FROM postbacks WHERE keyword = %s AND timestamp >= NOW() - INTERVAL 1 WEEK GROUP BY DATE(`timestamp`) ORDER BY DATE(`timestamp`) ASC;"
+        query = "SELECT DATE(timestamp) as log_date, AVG(sum) as average_revenue, COUNT(keyword) as total_conversions, MIN(sum) as lowest_revenue, MAX(sum) as highest_revenue FROM postbacks WHERE keyword = %s AND timestamp >= NOW() - INTERVAL 1 WEEK GROUP BY DATE(`timestamp`) ORDER BY DATE(`timestamp`) ASC;"
         log_date_array = create_date_array(7)
     elif period == 'CUR_MONTH':
-        query = "SELECT DATE(timestamp) as log_date, AVG(sum) as average_revenue FROM postbacks WHERE keyword = %s AND MONTH(`timestamp`) = MONTH(NOW()) GROUP BY DATE(`timestamp`) ORDER BY DATE(`timestamp`) ASC;"
+        query = "SELECT DATE(timestamp) as log_date, AVG(sum) as average_revenue, COUNT(keyword) as total_conversions, MIN(sum) as lowest_revenue, MAX(sum) as highest_revenue FROM postbacks WHERE keyword = %s AND MONTH(`timestamp`) = MONTH(NOW()) GROUP BY DATE(`timestamp`) ORDER BY DATE(`timestamp`) ASC;"
         log_date_array = create_date_array(get_current_day(datetime.now()))
     elif period == '1 MONTH':
-        query = "SELECT DATE(timestamp) as log_date, AVG(sum) as average_revenue FROM postbacks WHERE keyword = %s AND timestamp >= NOW() - INTERVAL 1 MONTH GROUP BY DATE(`timestamp`) ORDER BY DATE(`timestamp`) ASC;"
+        query = "SELECT DATE(timestamp) as log_date, AVG(sum) as average_revenue, COUNT(keyword) as total_conversions, MIN(sum) as lowest_revenue, MAX(sum) as highest_revenue FROM postbacks WHERE keyword = %s AND timestamp >= NOW() - INTERVAL 1 MONTH GROUP BY DATE(`timestamp`) ORDER BY DATE(`timestamp`) ASC;"
         log_date_array = create_date_array(get_days_one_month(datetime.now()))
     else:
-        query = "SELECT DATE(timestamp) as log_date, AVG(sum) as average_revenue FROM postbacks WHERE keyword = %s GROUP BY DATE(`timestamp`) ORDER BY DATE(`timestamp`) ASC;"
+        query = "SELECT DATE(timestamp) as log_date, AVG(sum) as average_revenue, COUNT(keyword) as total_conversions, MIN(sum) as lowest_revenue, MAX(sum) as highest_revenue FROM postbacks WHERE keyword = %s GROUP BY DATE(`timestamp`) ORDER BY DATE(`timestamp`) ASC;"
         
-    print(query, keyword, 'daily query')
     cursor.execute(query, (keyword, ))
     rows = cursor.fetchall()
 
-    print(rows[0][0], "+++++++++++++++++++++")
     if period == "All":
         log_date_array = create_date_array(get_days_between(rows[0][0], datetime.now()))
     avg_revenue_array = create_zeros_array(len(log_date_array))
-    print(log_date_array, 'log_date_array')
+    total_conversions_array = create_zeros_array(len(log_date_array))
+    min_revenue_array = create_zeros_array(len(log_date_array))
+    max_revenue_array = create_zeros_array(len(log_date_array))
+    
     # Prepare data for chart
     
     for index, item in enumerate(log_date_array):
-        print(rows,'rows+++++++')
         for row in rows:
-            print(item, row[0], item == row[0], type(item), type(str(row[0])), 'ppp')
             if item == str(row[0]):
                 avg_revenue_array[index] = row[1]
+                total_conversions_array[index] = row[2]
+                min_revenue_array[index] = row[3]
+                max_revenue_array[index] = row[4]
                 break
 
     data = {
         "log_dates": log_date_array,
-        "average_revenues": avg_revenue_array
+        "average_revenues": avg_revenue_array,
+        "total_conversions": total_conversions_array,
+        "lowest_revenues": min_revenue_array,
+        "highest_revenues": max_revenue_array
     }
     
-    print(data, 'daily_chat_data')
-
     cursor.close()
     conn.close()
 
